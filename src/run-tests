@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# set -x
+
+P1="alarm-single alarm-zero alarm-negative alarm-multiple alarm-simultaneous"
+P2="alarm-priority priority-change priority-preempt priority-fifo"
+P2_E="priority-sema priority-condvar"
+P3="mlfqs-load-1 mlfqs-load-60 mlfqs-load-avg mlfqs-recent-1 mlfqs-fair-2 mlfqs-fair-20 mlfqs-nice-2 mlfqs-nice-10 mlfqs-block"
+P4="priority-donate-one priority-donate-lower priority-donate-multiple priority-donate-multiple2 priority-donate-nest priority-donate-chain priority-donate-sema"
+P5="exit exec-once exec-arg exec-missing exec-multiple wait-simple wait-twice wait-bad-pid"
+P6="page-linear page-parallel page-shuffle"
+P7=""
+P8=""
+
+TESTS=${!1}
+DIR="threads"
+
+if [ "$1" == "P5" ]; then
+    DIR="userprog"
+fi
+
+if [ "$1" == "P6" ]; then
+    DIR="vm"
+fi
+
+if [ "$1" == "P7" ] || ["$1" == "P8"]; then
+    DIR="filesys"
+fi
+
+cd $DIR
+
+TOTAL_TESTS=$(echo "${TESTS}" | wc -w)
+TESTS_PASSED=0
+
+for test_name in $TESTS; do
+    make build/tests/${DIR}/${test_name}.result
+    CURRENT_RESULT=$(cat build/tests/${DIR}/${test_name}.result)
+    if [ "${CURRENT_RESULT}" == "PASS" ] ;  then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    fi
+done
+
+cd ..
+
+echo "SUMMARY ${TESTS_PASSED}/${TOTAL_TESTS} PASS"
+
+if [ "${TESTS_PASSED}" == "${TOTAL_TESTS}" ] ;  then
+    echo "TESTS SUCCEDED"
+    exit 0
+else
+    echo "TESTS FAILED"
+    exit -1
+fi

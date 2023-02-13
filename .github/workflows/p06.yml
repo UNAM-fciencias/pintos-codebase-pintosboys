@@ -1,0 +1,23 @@
+name: Test P06
+
+on:
+  workflow_dispatch
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    container:
+      image: alainchevanier/so-20231-pintos
+      volumes:
+        -  ${{ github.workspace }}:/app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Compile
+        run: |
+          cd /app/src/threads
+          make
+      - name: Run tests
+        run: |
+          cd /app/src
+          ./run-tests P6

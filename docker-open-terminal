@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+DOCKER_IMAGE_BACKUP="alainchevanier/so-20231-pintos"
+docker run -it --volume $PWD:/app --workdir /app --rm $DOCKER_IMAGE_BACKUP bash
