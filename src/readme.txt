@@ -13,7 +13,7 @@ proceso de inicialización (booting) para que funcione en un sistema multi nucle
 
 2. ¿Para qué sirve el stack de un proceso?
 
-    Para las variables locales del proceso y los estados.
+    Para alamacenar las variables locales del proceso y los estados.
 
 3. ¿Qué diferencia hay entre el thread idle y el thread main?
 
