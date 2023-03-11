@@ -1,9 +1,11 @@
+
 #include "threads/thread.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -200,8 +202,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
   thread_yield();
+
   return tid;
 }
 
@@ -219,13 +221,6 @@ thread_block (void)
 
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
-} 
-
-bool compare(const struct list_elem* e1, const struct list_elem* e2, void* aux UNUSED){
-  struct thread* d1 = list_entry(e1, struct thread, elem);
-  struct thread* d2 = list_entry(e2, struct thread, elem);
-
-  return d1->priority < d2->priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -245,16 +240,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, compare, NULL);
+  list_insert_ordered (&ready_list, &t->elem, compare_priority, 0);
   t->status = THREAD_READY;
   intr_set_level (old_level);
-//MODIFICACION
-  if(thread_current()->priority < t->priority){
-    if(!intr_context())
-        thread_yield();
-    else
-      intr_yield_on_return(); 
-  }
 }
 
 /* Returns the name of the running thread. */
@@ -322,9 +310,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread){
-    list_insert_ordered(&ready_list, &cur->elem, compare, NULL);
-  } 
+  if (cur != idle_thread)
+    list_insert_ordered (&ready_list, &cur->elem, compare_priority, 0);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -351,15 +338,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-    thread_current()->priority = new_priority;
+  thread_current()->priorities[0] = new_priority;
+  if(thread_current()->size==1)
+  { 
+    thread_current ()->priority = new_priority;
     thread_yield();
-  //struct thread* t = thread_current();
-  //int old_priority = t->priority;
-  //t->priority = new_priority;
-
-  //if(old_priority > new_priority){
-    //thread_yield();
-  //}
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -486,8 +470,14 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+ 
+ /* Make list of priorities and not the number of 
+    locks with each thread*/
+  t->priorities[0] = priority;
+  t->donation_no=0;
+  t->size = 1;
   t->magic = THREAD_MAGIC;
-
+  t->waiting_for=NULL;
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -606,3 +596,40 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+/* Compares the priority of the two threards and returns true if priority 
+   of first thread is greater than the second thread. */
+bool compare_priority(struct list_elem *l1, struct list_elem *l2,void *aux)
+{ 
+  struct thread *t1 = list_entry(l1,struct thread,elem);
+  struct thread *t2 = list_entry(l2,struct thread,elem);
+  if( t1->priority > t2->priority)
+    return true;
+  return false;
+}
+
+/*Sorts the ready_list present in thread.c*/
+ void sort_ready_list(void)
+{
+  list_sort(&ready_list, compare_priority, 0);
+}
+
+/* Searches the stack of Donation priority list for the priority of the donor
+   thread to remove it from the list and change the current priority 
+   accordingly*/
+void search_array(struct thread *cur,int elem)
+{ int found=0;
+  for(int i=0;i<(cur->size)-1;i++)
+  {
+  if(cur->priorities[i]==elem)
+    {
+     found=1;
+    }
+  if(found==1)
+    {
+     cur->priorities[i]=cur->priorities[i+1];
+    }
+  }
+  cur->size -=1;
+}
