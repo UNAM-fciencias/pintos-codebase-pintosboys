@@ -1,11 +1,9 @@
-
 #include "threads/thread.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdarg.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -22,9 +20,13 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
-static struct list ready_list;
+/* Processes in THREAD_READY state, that is, processes
+   that are ready to run but not actually running. 
+   Processes ordered by priority. First entry points
+   to a list which contains threads with priority level
+   0, second entry points to a list with priority level
+   1 and so on up to priority 63 */
+static struct list ready_array[64];
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -92,7 +94,13 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  list_init (&ready_list);
+  
+  //Initialize all lists from array 
+  for(int i = 0; i < 64; i++){
+    list_init(&ready_array[i]);
+  }
+  
+  // Initialize all_list
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -202,7 +210,12 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield();
+
+  /* If new thread t has higher priority than
+  current running thread, make t the current running thread */
+  if(t->priority > thread_get_priority()){
+      thread_yield();  
+  }
 
   return tid;
 }
@@ -240,7 +253,11 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, compare_priority, 0);
+  
+  /* Add new unblocked thread in the ready_array according to
+  its priority */
+  int position = t->priority;
+  list_push_back (&ready_array[position], &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -310,8 +327,11 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread)
-    list_insert_ordered (&ready_list, &cur->elem, compare_priority, 0);
+  
+  /* Adding thread to ready list according to its priority */
+  if (cur != idle_thread){ 
+    list_push_back (&ready_array[cur -> priority], &cur->elem);
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -338,10 +358,20 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current()->priorities[0] = new_priority;
-  if(thread_current()->size==1)
-  { 
-    thread_current ()->priority = new_priority;
+  thread_current ()->priority = new_priority;
+
+  // Looking for the thread queued with highest priority
+  struct thread *t;
+  for(int i = 63; i >= 0; i--){
+    if (!list_empty (&ready_array[i])) {
+      t = list_entry (list_begin (&ready_array[i]), struct thread, elem);
+      break;
+    }
+  }
+
+  /* If there´s a thread queued (t != NULL) and if it also
+  has higher priority than current thread, give it cpu */
+  if(t != NULL && t->priority > new_priority){
     thread_yield();
   }
 }
@@ -470,14 +500,8 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
- 
- /* Make list of priorities and not the number of 
-    locks with each thread*/
-  t->priorities[0] = priority;
-  t->donation_no=0;
-  t->size = 1;
   t->magic = THREAD_MAGIC;
-  t->waiting_for=NULL;
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -504,10 +528,15 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
-    return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  // Looking for queued thread with highest priority
+  for (int i = 63; i >= 0; i--){
+    
+    if(!list_empty (&ready_array[i]))
+      return list_entry (list_pop_front (&ready_array[i]), struct thread, elem);
+  }
+
+  //If there´s no thread available
+  return idle_thread;
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -596,40 +625,3 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
-
-/* Compares the priority of the two threards and returns true if priority 
-   of first thread is greater than the second thread. */
-bool compare_priority(struct list_elem *l1, struct list_elem *l2,void *aux)
-{ 
-  struct thread *t1 = list_entry(l1,struct thread,elem);
-  struct thread *t2 = list_entry(l2,struct thread,elem);
-  if( t1->priority > t2->priority)
-    return true;
-  return false;
-}
-
-/*Sorts the ready_list present in thread.c*/
- void sort_ready_list(void)
-{
-  list_sort(&ready_list, compare_priority, 0);
-}
-
-/* Searches the stack of Donation priority list for the priority of the donor
-   thread to remove it from the list and change the current priority 
-   accordingly*/
-void search_array(struct thread *cur,int elem)
-{ int found=0;
-  for(int i=0;i<(cur->size)-1;i++)
-  {
-  if(cur->priorities[i]==elem)
-    {
-     found=1;
-    }
-  if(found==1)
-    {
-     cur->priorities[i]=cur->priorities[i+1];
-    }
-  }
-  cur->size -=1;
-}
