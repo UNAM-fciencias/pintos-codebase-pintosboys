@@ -26,7 +26,7 @@
    to a list which contains threads with priority level
    0, second entry points to a list with priority level
    1 and so on up to priority 63 */
-static struct list ready_list;
+static struct list ready_array[64];
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -96,10 +96,9 @@ thread_init (void)
   lock_init (&tid_lock);
   
   //Initialize all lists from array 
-  //for(int i = 0; i < 64; i++){
-  //  list_init(&ready_list[i]);
-  //}
-  list_init(&ready_list);
+  for(int i = 0; i < 64; i++){
+    list_init(&ready_array[i]);
+  }
   
   // Initialize all_list
   list_init (&all_list);
@@ -255,10 +254,10 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   
-  /* Add new unblocked thread in the ready_list according to
+  /* Add new unblocked thread in the ready_array according to
   its priority */
   int position = t->priority;
-  list_push_back (&ready_list, &t->elem);
+  list_push_back (&ready_array[position], &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -331,7 +330,7 @@ thread_yield (void)
   
   /* Adding thread to ready list according to its priority */
   if (cur != idle_thread){ 
-    list_push_back (&ready_list, &cur->elem);
+    list_push_back (&ready_array[cur -> priority], &cur->elem);
   }
   cur->status = THREAD_READY;
   schedule ();
@@ -364,8 +363,8 @@ thread_set_priority (int new_priority)
   // Looking for the thread queued with highest priority
   struct thread *t;
   for(int i = 63; i >= 0; i--){
-    if (!list_empty (&ready_list)) {
-      t = list_entry (list_begin (&ready_list), struct thread, elem);
+    if (!list_empty (&ready_array[i])) {
+      t = list_entry (list_begin (&ready_array[i]), struct thread, elem);
       break;
     }
   }
@@ -532,8 +531,8 @@ next_thread_to_run (void)
   // Looking for queued thread with highest priority
   for (int i = 63; i >= 0; i--){
     
-    if(!list_empty (&ready_list))
-      return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    if(!list_empty (&ready_array[i]))
+      return list_entry (list_pop_front (&ready_array[i]), struct thread, elem);
   }
 
   //If there´s no thread available
