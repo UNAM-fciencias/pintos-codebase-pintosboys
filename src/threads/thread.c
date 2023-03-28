@@ -1,9 +1,11 @@
+
 #include "threads/thread.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -20,9 +22,15 @@
     of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+<<<<<<< HEAD
 /*! List of processes in THREAD_READY state, that is, processes
     that are ready to run but not actually running. */
 static struct list ready_lists[PRI_MAX - PRI_MIN + 1];
+=======
+/* List of processes in THREAD_READY state, that is, processes
+   that are ready to run but not actually running. */
+static struct list ready_list;
+>>>>>>> parent of bc3fa77 (.)
 
 /*! List of all processes.  Processes are added to this list
     when they are first scheduled and removed when they exit. */
@@ -86,7 +94,13 @@ void thread_init(void)
 {
     ASSERT(intr_get_level() == INTR_OFF);
 
+<<<<<<< HEAD
     lock_init(&tid_lock);
+=======
+  lock_init (&tid_lock);
+  list_init (&ready_list);
+  list_init (&all_list);
+>>>>>>> parent of bc3fa77 (.)
 
     int i = PRI_MIN;
     for (; i <= PRI_MAX; i++)
@@ -197,10 +211,18 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     sf->eip = switch_entry;
     sf->ebp = 0;
 
+<<<<<<< HEAD
     /* Add to run queue. */
     thread_unblock(t);
 
     return tid;
+=======
+  /* Add to run queue. */
+  thread_unblock (t);
+  thread_yield();
+
+  return tid;
+>>>>>>> parent of bc3fa77 (.)
 }
 
 /*! Puts the current thread to sleep.  It will not be scheduled
@@ -230,6 +252,7 @@ void thread_unblock(struct thread *t)
 
     ASSERT(is_thread(t));
 
+<<<<<<< HEAD
     old_level = intr_disable();
     ASSERT(t->status == THREAD_BLOCKED);
     list_push_back(&ready_lists[t->priority], &t->elem);
@@ -249,6 +272,13 @@ void thread_unblock(struct thread *t)
     }
 
     intr_set_level(old_level);
+=======
+  old_level = intr_disable ();
+  ASSERT (t->status == THREAD_BLOCKED);
+  list_insert_ordered (&ready_list, &t->elem, compare_priority, 0);
+  t->status = THREAD_READY;
+  intr_set_level (old_level);
+>>>>>>> parent of bc3fa77 (.)
 }
 
 /*! Returns the name of the running thread. */
@@ -308,7 +338,17 @@ void thread_yield(void)
     struct thread *cur = thread_current();
     enum intr_level old_level;
 
+<<<<<<< HEAD
     ASSERT(!intr_context());
+=======
+  old_level = intr_disable ();
+  if (cur != idle_thread)
+    list_insert_ordered (&ready_list, &cur->elem, compare_priority, 0);
+  cur->status = THREAD_READY;
+  schedule ();
+  intr_set_level (old_level);
+}
+>>>>>>> parent of bc3fa77 (.)
 
     old_level = intr_disable();
     if (cur != idle_thread)
@@ -325,12 +365,78 @@ void thread_yield(void)
     This function must be called with interrupts off. */
 void thread_foreach(thread_action_func *func, void *aux)
 {
+<<<<<<< HEAD
     struct list_elem *e;
 
     ASSERT(intr_get_level() == INTR_OFF);
 
     for (e = list_begin(&all_list); e != list_end(&all_list);
          e = list_next(e))
+=======
+  thread_current()->priorities[0] = new_priority;
+  if(thread_current()->size==1)
+  { 
+    thread_current ()->priority = new_priority;
+    thread_yield();
+  }
+}
+
+/* Returns the current thread's priority. */
+int
+thread_get_priority (void) 
+{
+  return thread_current ()->priority;
+}
+
+/* Sets the current thread's nice value to NICE. */
+void
+thread_set_nice (int nice UNUSED) 
+{
+  /* Not yet implemented. */
+}
+
+/* Returns the current thread's nice value. */
+int
+thread_get_nice (void) 
+{
+  /* Not yet implemented. */
+  return 0;
+}
+
+/* Returns 100 times the system load average. */
+int
+thread_get_load_avg (void) 
+{
+  /* Not yet implemented. */
+  return 0;
+}
+
+/* Returns 100 times the current thread's recent_cpu value. */
+int
+thread_get_recent_cpu (void) 
+{
+  /* Not yet implemented. */
+  return 0;
+}
+
+/* Idle thread.  Executes when no other thread is ready to run.
+
+   The idle thread is initially put on the ready list by
+   thread_start().  It will be scheduled once initially, at which
+   point it initializes idle_thread, "up"s the semaphore passed
+   to it to enable thread_start() to continue, and immediately
+   blocks.  After that, the idle thread never appears in the
+   ready list.  It is returned by next_thread_to_run() as a
+   special case when the ready list is empty. */
+static void
+idle (void *idle_started_ UNUSED) 
+{
+  struct semaphore *idle_started = idle_started_;
+  idle_thread = thread_current ();
+  sema_up (idle_started);
+
+  for (;;) 
+>>>>>>> parent of bc3fa77 (.)
     {
         struct thread *t = list_entry(e, struct thread, allelem);
         func(t, aux);
@@ -341,6 +447,7 @@ void thread_foreach(thread_action_func *func, void *aux)
 void thread_set_priority(int new_priority)
 {
 
+<<<<<<< HEAD
     enum intr_level old_level = intr_disable();
     
     ASSERT(new_priority <= PRI_MAX);
@@ -356,6 +463,88 @@ void thread_set_priority(int new_priority)
     }
 
     intr_set_level(old_level);
+=======
+  intr_enable ();       /* The scheduler runs with interrupts off. */
+  function (aux);       /* Execute the thread function. */
+  thread_exit ();       /* If function() returns, kill the thread. */
+}
+
+/* Returns the running thread. */
+struct thread *
+running_thread (void) 
+{
+  uint32_t *esp;
+
+  /* Copy the CPU's stack pointer into `esp', and then round that
+     down to the start of a page.  Because `struct thread' is
+     always at the beginning of a page and the stack pointer is
+     somewhere in the middle, this locates the curent thread. */
+  asm ("mov %%esp, %0" : "=g" (esp));
+  return pg_round_down (esp);
+}
+
+/* Returns true if T appears to point to a valid thread. */
+static bool
+is_thread (struct thread *t)
+{
+  return t != NULL && t->magic == THREAD_MAGIC;
+}
+
+/* Does basic initialization of T as a blocked thread named
+   NAME. */
+static void
+init_thread (struct thread *t, const char *name, int priority)
+{
+  enum intr_level old_level;
+
+  ASSERT (t != NULL);
+  ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
+  ASSERT (name != NULL);
+
+  memset (t, 0, sizeof *t);
+  t->status = THREAD_BLOCKED;
+  strlcpy (t->name, name, sizeof t->name);
+  t->stack = (uint8_t *) t + PGSIZE;
+  t->priority = priority;
+ 
+ /* Make list of priorities and not the number of 
+    locks with each thread*/
+  t->priorities[0] = priority;
+  t->donation_no=0;
+  t->size = 1;
+  t->magic = THREAD_MAGIC;
+  t->waiting_for=NULL;
+  old_level = intr_disable ();
+  list_push_back (&all_list, &t->allelem);
+  intr_set_level (old_level);
+}
+
+/* Allocates a SIZE-byte frame at the top of thread T's stack and
+   returns a pointer to the frame's base. */
+static void *
+alloc_frame (struct thread *t, size_t size) 
+{
+  /* Stack data is always allocated in word-size units. */
+  ASSERT (is_thread (t));
+  ASSERT (size % sizeof (uint32_t) == 0);
+
+  t->stack -= size;
+  return t->stack;
+}
+
+/* Chooses and returns the next thread to be scheduled.  Should
+   return a thread from the run queue, unless the run queue is
+   empty.  (If the running thread can continue running, then it
+   will be in the run queue.)  If the run queue is empty, return
+   idle_thread. */
+static struct thread *
+next_thread_to_run (void) 
+{
+  if (list_empty (&ready_list))
+    return idle_thread;
+  else
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+>>>>>>> parent of bc3fa77 (.)
 }
 
 /*! Returns the current thread's priority. */
@@ -451,6 +640,7 @@ struct thread *running_thread(void)
         : "=g"(esp));
     return pg_round_down(esp);
 }
+<<<<<<< HEAD
 
 /*! Returns true if T appears to point to a valid thread. */
 static bool is_thread(struct thread *t)
@@ -592,3 +782,46 @@ static tid_t allocate_tid(void)
 /*! Offset of `stack' member within `struct thread'.
     Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
+=======
+
+/* Offset of `stack' member within `struct thread'.
+   Used by switch.S, which can't figure it out on its own. */
+uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+/* Compares the priority of the two threards and returns true if priority 
+   of first thread is greater than the second thread. */
+bool compare_priority(struct list_elem *l1, struct list_elem *l2,void *aux)
+{ 
+  struct thread *t1 = list_entry(l1,struct thread,elem);
+  struct thread *t2 = list_entry(l2,struct thread,elem);
+  if( t1->priority > t2->priority)
+    return true;
+  return false;
+}
+
+/*Sorts the ready_list present in thread.c*/
+ void sort_ready_list(void)
+{
+  list_sort(&ready_list, compare_priority, 0);
+}
+
+/* Searches the stack of Donation priority list for the priority of the donor
+   thread to remove it from the list and change the current priority 
+   accordingly*/
+void search_array(struct thread *cur,int elem)
+{ int found=0;
+  for(int i=0;i<(cur->size)-1;i++)
+  {
+  if(cur->priorities[i]==elem)
+    {
+     found=1;
+    }
+  if(found==1)
+    {
+     cur->priorities[i]=cur->priorities[i+1];
+    }
+  }
+  cur->size -=1;
+}
+>>>>>>> parent of bc3fa77 (.)
