@@ -147,15 +147,15 @@ void thread_tick(void)
   else
     kernel_ticks++;
 
-  thread_current()->recent_cpu = thread_current()->recent_cpu++;
-  
-  if(timer_ticks()%TIMER_FREQ == 0)
+  thread_current()->recent_cpu = thread_current()->recent_cpu+F_CONST;
+
+  if (timer_ticks() % TIMER_FREQ == 0)
   {
     calculate_load_avg();
     calculate_recent_cpu_for_all();
   }
 
-  if(timer_ticks()%TIME_SLICE == 0)
+  if (timer_ticks() % TIME_SLICE == 0)
   {
     calculate_priority_mlfq_for_all();
   }
@@ -398,11 +398,11 @@ int thread_get_priority(void)
 void thread_set_nice(int nice)
 {
   ASSERT(nice >= -20 && nice <= 20);
-  
-  struct thread *current = thread_current ();
+
+  struct thread *current = thread_current();
 
   current->nice = nice;
-  ASSERT (is_thread (current));
+  ASSERT(is_thread(current));
   if (current == idle_thread)
     return;
 
@@ -413,19 +413,19 @@ void thread_set_nice(int nice)
 /* Returns the current thread's nice value. */
 int thread_get_nice(void)
 {
-  return thread_current() -> nice;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int thread_get_load_avg(void)
 {
-  return FIXPOINT_TO_INT(load_avg*100);
+  return round_fixpoint_to_integer(load_avg * 100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu(void)
 {
-  return FIXPOINT_TO_INT(100*thread_current()->recent_cpu);
+  return round_fixpoint_to_integer(100 * thread_current()->recent_cpu);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -518,9 +518,9 @@ init_thread(struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
 
-  t-> nice = 0;
-  if(t == initial_thread)
-    t->recent_cpu = FIXPOINT(0,1);
+  t->nice = 0;
+  if (t == initial_thread)
+    t->recent_cpu = FIXPOINT(0, 1);
   else
     t->recent_cpu = thread_get_recent_cpu();
 
@@ -670,40 +670,37 @@ void set_priority_mlfq(int priority, struct thread *t)
   {
     enum intr_level old_level;
 
-    ASSERT(!intr_context()) 
-    
+    ASSERT(!intr_context())
+
     old_level = intr_disable();
-    
+
     if (t != idle_thread)
       list_push_back(&ready_list[t->priority], &t->elem);
-    
+
     t->status = THREAD_READY;
     schedule();
     intr_set_level(old_level);
   }
 }
 
-void
-calculate_priority_mlfq(struct thread *t)
+void calculate_priority_mlfq(struct thread *t)
 {
   ASSERT(is_thread(t))
 
-  if(t == idle_thread)
-    return; 
+  if (t == idle_thread)
+    return;
 
-  int priority = PRI_MAX - FIXPOINT_TO_INT(t->recent_cpu/4)- t->nice*2;
+  int priority = PRI_MAX - round_fixpoint_to_integer(t->recent_cpu / 4) - t->nice * 2;
 
-  if(priority > PRI_MAX)
+  if (priority > PRI_MAX)
     priority = PRI_MAX;
   else if (priority < PRI_MIN)
     priority = PRI_MIN;
 
   t->priority = priority;
-
 }
 
-void 
-calculate_priority_mlfq_for_all(void)
+void calculate_priority_mlfq_for_all(void)
 {
   struct thread *t;
   struct list_elem *element;
@@ -711,41 +708,38 @@ calculate_priority_mlfq_for_all(void)
 
   tail = list_end(&all_list);
   element = list_begin(&all_list);
-  
-  while(element != tail)
+
+  while (element != tail)
   {
-    t = list_entry(element,struct thread, allelem);
+    t = list_entry(element, struct thread, allelem);
     calculate_priority_mlfq(t);
     element = list_next(element);
   }
 }
 
-void
-calculate_load_avg(void)
+void calculate_load_avg(void)
 {
   int ready_threads = 0;
 
-  for(int i = PRI_MAX; i >= 0; i--)
+  for (int i = PRI_MAX; i >= 0; i--)
   {
     ready_threads += list_size(&ready_list[i]);
   }
 
-  if(thread_current() != idle_thread)
+  if (thread_current() != idle_thread)
     ready_threads++;
 
-  load_avg = FIXPOINT_PRODUCT(FIXPOINT_DIVISION (59, 60), load_avg) + FIXPOINT_PRODUCT(FIXPOINT_DIVISION (1,  60), FIXPOINT(ready_threads, 1));
+  load_avg = FIXPOINT_PRODUCT(FIXPOINT_DIVISION(59, 60), load_avg) + FIXPOINT_PRODUCT(FIXPOINT_DIVISION(1, 60), FIXPOINT(ready_threads, 1));
 }
 
-void 
-calculate_recent_cpu(struct thread *t)
+void calculate_recent_cpu(struct thread *t)
 {
   ASSERT(is_thread(t));
 
-  t->recent_cpu = FIXPOINT_PRODUCT(FIXPOINT_DIVISION(2*load_avg, 2*load_avg + 1), t->recent_cpu) + t->nice;
+  t->recent_cpu = FIXPOINT_PRODUCT(FIXPOINT_DIVISION(2 * load_avg, 2 * load_avg + F_CONST), t->recent_cpu) + (t->nice)*F_CONST;
 }
 
-void
-calculate_recent_cpu_for_all(void)
+void calculate_recent_cpu_for_all(void)
 {
   struct thread *t;
   struct list_elem *element;
@@ -753,12 +747,24 @@ calculate_recent_cpu_for_all(void)
 
   tail = list_end(&all_list);
   element = list_begin(&all_list);
-  
-  while(element != tail)
+
+  while (element != tail)
   {
-    t = list_entry(element,struct thread, allelem);
+    t = list_entry(element, struct thread, allelem);
     calculate_recent_cpu(t);
     element = list_next(element);
+  }
+}
+
+int round_fixpoint_to_integer(x)
+{
+  if (x >= 0)
+  {
+    return (x + (F_CONST / 2)) / F_CONST;
+  }
+  else
+  {
+    return (x - (F_CONST / 2)) / F_CONST;
   }
 }
 
