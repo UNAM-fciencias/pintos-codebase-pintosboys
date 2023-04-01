@@ -683,6 +683,7 @@ void set_priority_mlfq(int priority, struct thread *t)
   }
 }
 
+/* Calculates the priority of a process. */
 void calculate_priority_mlfq(struct thread *t)
 {
   ASSERT(is_thread(t))
@@ -700,6 +701,7 @@ void calculate_priority_mlfq(struct thread *t)
   t->priority = priority;
 }
 
+/* Calculate the priority of all processes in all_list. */
 void calculate_priority_mlfq_for_all(void)
 {
   struct thread *t;
@@ -717,6 +719,7 @@ void calculate_priority_mlfq_for_all(void)
   }
 }
 
+/* Calculate the load_avg. */
 void calculate_load_avg(void)
 {
   int ready_threads = 0;
@@ -732,6 +735,7 @@ void calculate_load_avg(void)
   load_avg = FIXPOINT_PRODUCT(FIXPOINT_DIVISION(59, 60), load_avg) + FIXPOINT_PRODUCT(FIXPOINT_DIVISION(1, 60), FIXPOINT(ready_threads, 1));
 }
 
+/* Calculate the recent_cpu. */
 void calculate_recent_cpu(struct thread *t)
 {
   ASSERT(is_thread(t));
@@ -739,6 +743,7 @@ void calculate_recent_cpu(struct thread *t)
   t->recent_cpu = FIXPOINT_PRODUCT(FIXPOINT_DIVISION(2 * load_avg, 2 * load_avg + F_CONST), t->recent_cpu) + (t->nice)*F_CONST;
 }
 
+/* Calculate the recent_cpu for all processes in the all_list. */
 void calculate_recent_cpu_for_all(void)
 {
   struct thread *t;
@@ -756,6 +761,7 @@ void calculate_recent_cpu_for_all(void)
   }
 }
 
+/* Rounds a fixpoint to an integer. */
 int round_fixpoint_to_integer(x)
 {
   if (x >= 0)

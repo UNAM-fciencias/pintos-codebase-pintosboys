@@ -141,6 +141,7 @@ void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
+/* Functions for practice 3. */
 void set_priority_mlfq(int,struct thread *);
 void calculate_priority_mlfq(struct thread *);
 void calculate_priority_mlfq_for_all(void);
