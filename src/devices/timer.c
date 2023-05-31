@@ -20,8 +20,6 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
-static struct list dormidos;
-
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -39,7 +37,6 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(&dormidos);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -95,15 +92,8 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  //while (timer_elapsed (start) < ticks) 
-  //  thread_yield ();
-
-  enum intr_level old = intr_set_level(INTR_OFF);
-  struct thread* t = thread_current();
-  t->por_dormir = ticks;
-  list_push_back(&dormidos, &thread_current()->elem);
-  thread_block();
-  intr_set_level(old);
+  while (timer_elapsed (start) < ticks) 
+    thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -182,20 +172,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-
-  struct list_elem* nodo = list_begin(&dormidos);
-  while(nodo != list_end(&dormidos)) {
-    struct thread* t = list_entry(nodo, struct thread, elem);
-
-    t->por_dormir--;
-    if(t->por_dormir <= 0){
-      nodo = list_remove(nodo);
-      thread_unblock(t);
-    }
-    else {
-      nodo = list_next(nodo);
-    }
-  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 static int32_t write_wrapper (int32_t *esp);
@@ -32,6 +33,20 @@ syscall_handler (struct intr_frame *f UNUSED)
       exit_wrapper (esp);
       break;
     }
+    case SYS_WAIT:{
+       tid_t child_tid = *esp;
+
+      f->eax = process_wait(child_tid);
+
+      break;
+    }
+    case SYS_EXEC:{
+      const char* cmd = (char*)*esp;
+
+      f->eax = (uint32_t) process_execute(cmd);
+
+      break;
+    }
     default: {
       printf ("unsupported syscall\n");
       thread_exit ();
@@ -58,6 +73,28 @@ write (int file_descriptor UNUSED, char* buffer, unsigned size) {
 static void 
 exit_wrapper (int32_t *esp) {
   int exit_status = *esp;
+  printf("%s: exit(%d)\n", thread_current()->name, exit_status);
+
+
+      struct thread *cur = thread_current ();
+      struct thread *padre = cur->father;
+
+      if (padre != NULL) {
+    struct list *hijos = &padre->childs;
+    struct list_elem *hijo_elem;
+    
+    if (!list_empty(hijos)) {
+        for (hijo_elem = list_front(hijos); hijo_elem != list_end(hijos); hijo_elem = list_next(hijo_elem)) {
+            struct process *hijo = list_entry(hijo_elem, struct process, elem);
+            
+            if (hijo->tid == cur->tid) {
+                hijo->exit_status = exit_status;
+                sema_up(&padre->wait);
+            }
+        }
+    }
+}
+
   exit (exit_status);
 }
 
